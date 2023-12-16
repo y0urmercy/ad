@@ -80,6 +80,7 @@ IQR = Q3 - Q1
 upper = Q3 + 4 * IQR
 lower = Q1 - 4 * IQR
 df.loc[df['revenue'] > upper, 'revenue'] = med
+df.loc[df['revenue'] == 1, 'revenue'] = 0
 
 
 def get_time_of_day(hour):
