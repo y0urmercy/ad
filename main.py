@@ -64,6 +64,7 @@ df['device'] = df.apply(lambda x: merge_similar_strings(x['device'], device_lst)
 
 df.drop_duplicates().reset_index(drop=True)
 
+
 # print(*[df[i].value_counts() for i in df.columns], sep=f'\n{"-" * 10}\n')
 
 df['session_start'] = pd.to_datetime(df['session_start'])
@@ -144,34 +145,99 @@ print(table_by_channel, sep='\n\n', end='\n------------------------------\n')
 
 from scipy import stats
 
-device_purchases = df.groupby(['region', 'device'])['revenue'].count().reset_index()
-device_purchases = device_purchases.pivot(index='region', columns='device', values='revenue')
-device_purchases.fillna(0, inplace=True)
-device_purchases_test = stats.chi2_contingency(device_purchases)
-print(device_purchases_test[1])
+"""
+ Влияет ли тип устройства на количество покупок в день по каждому региону?
+ Влияет ли тип рекламного канала на количество покупок в день по каждому региону?
+ Проверить гипотезу о том, что средний чек отличается в зависимости от региона?!
+ Проверить гипотезу о том, что средний чек отличается в зависимости от рекламного канала?!
+ Проверить гипотезу о том, что средний чек отличается в зависимости от времени суток?!
+ Есть ли взаимосвязь между продолжительностью сессии с суммой покупок?
+ Проверить гипотезу о том, что средний чек отличается в зависимости от длительности сессии?!
+ Есть ли взаимосвязь между типом утройства с типом оплаты?!
+ Влияет ли день недели визита на час визита по каждому региону?
+ """
 
-channel_purchases = df.groupby(['region', 'channel'])['revenue'].count().reset_index()
-channel_purchases = channel_purchases.pivot(index='region', columns='channel', values='revenue')
-channel_purchases.fillna(0, inplace=True)
-channel_purchases_test = stats.chi2_contingency(channel_purchases)
-print(channel_purchases_test[1])
+pt_device = pd.pivot_table(df, values='revenue', index='region', columns='device', aggfunc='count')
+print(pt_device.to_string())
 
-region_revenue = df.groupby('region')['revenue'].mean()
-region_revenue_test = stats.f_oneway(*[region_revenue.values for region in region_revenue.index])
-print(region_revenue_test[1])
+pt_channel = pd.pivot_table(df, values='revenue', index='region', columns='channel', aggfunc='count')
+print(pt_channel.to_string())
 
-channel_revenue = df.groupby('channel')['revenue'].mean()
-channel_revenue_test = stats.f_oneway(*[channel_revenue.values for channel in channel_revenue.index])
-print(channel_revenue_test[1])
+grouped_region = df.groupby('region')['revenue']
+regions = []
+regions_mean_revenues = []
+for region, revenue in grouped_region:
+    regions.append(region)
+    regions_mean_revenues.append(revenue.mean())
+print(regions)
+for i in range(len(regions)):
+    for j in range(i + 1, len(regions)):
+        region1 = regions[i]
+        region2 = regions[j]
 
-hour_revenue = df.groupby('hour_of_day')['revenue'].mean()
-hour_revenue_test = stats.f_oneway(*[hour_revenue.values for hour in hour_revenue.index])
-print(hour_revenue_test[1])
+        revenue1 = grouped_region.get_group(region1)
+        revenue2 = grouped_region.get_group(region2)
 
-session_duration = df['sessiondurationsec']
-session_revenue = df['revenue']
-session_revenue_corr = session_duration.corr(session_revenue)
-print(session_revenue_corr)
+        t_statistic, p_value = stats.ttest_ind(revenue1, revenue2)
+        rounded = round(p_value, 3)
+        print(f"P-value {region1} и {region2}: {rounded} & {rounded <= 0.05}")
+
+grouped_channel = df.groupby('channel')['revenue']
+channels = []
+channels_mean_revenues = []
+for channel, revenue in grouped_channel:
+    channels.append(channel)
+    channels_mean_revenues.append(revenue.mean())
+print(channels)
+for i in range(len(channels)):
+    for j in range(i + 1, len(channels)):
+        channel1 = channels[i]
+        channel2 = channels[j]
+
+        revenue1 = grouped_channel.get_group(channel1)
+        revenue2 = grouped_channel.get_group(channel2)
+
+        t_statistic, p_value = stats.ttest_ind(revenue1, revenue2)
+        rounded = round(p_value, 3)
+        print(f"P-value {channel1} и {channel2}: {rounded} & {rounded <= 0.05}")
+
+grouped_time = df.groupby('time_of_day')['revenue']
+times = []
+times_mean_revenues = []
+for time, revenue in grouped_time:
+    times.append(time)
+    times_mean_revenues.append(revenue.mean())
+print(times)
+for i in range(len(times)):
+    for j in range(i + 1, len(times)):
+        time1 = times[i]
+        time2 = times[j]
+
+        revenue1 = grouped_time.get_group(time1)
+        revenue2 = grouped_time.get_group(time2)
+
+        t_statistic, p_value = stats.ttest_ind(revenue1, revenue2)
+        rounded = round(p_value, 3)
+        print(f"P-value {time1} и {time2}: {rounded} & {rounded <= 0.05}")
+
+correlation = df['sessiondurationsec'].corr(df['revenue'])
+print('corr', round(correlation, 3))
+
+short_sessions = df[df['sessiondurationsec'] < 600]['revenue']
+long_sessions = df[df['sessiondurationsec'] >= 600]['revenue']
+
+t_statistic, p_value = stats.ttest_ind(short_sessions, long_sessions)
+rounded = round(p_value, 3)
+print(f"P-value short_sessions и long_sessions: {rounded} & {rounded <= 0.05}")
+
+cross_table = pd.crosstab(df['device'], df['payment_type'])
+chi2, p_value, _, _ = stats.chi2_contingency(cross_table)
+rounded = round(p_value, 3)
+print(f"P-value device и payment_type: {rounded} & {rounded <= 0.05}")
+
+
+pt_day = pd.pivot_table(df, values='hour_of_day', index='region', columns='day', aggfunc='count')
+print(pt_day.to_string())
 
 ###############
 
@@ -195,6 +261,7 @@ print(f"r2: {round(r2, 2)}; mae: {round(mae, 2)}")  # -> хорошо соотв
 
 #############
 print('----------------------')
+print('Расчёт метрик')
 average_revenue = df['total_revenue'].sum() / df.shape[0]
 print(f"Средний чек \n{average_revenue}")
 user_sales_count = df.groupby(df['user_id'])['total_revenue'].count()
@@ -326,3 +393,5 @@ ax10 = plt.subplot(gs[2, 2])
 ax10.plot(sales_time_of_day['time_of_day'], sales_time_of_day['revenue'])
 ax10.set_title('Количество покупок по времени суток')
 plt.show()
+
+
